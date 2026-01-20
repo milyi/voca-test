@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>영단어 암기 도우미</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 400px; margin: auto; padding: 20px; }
+    h2 { text-align: center; }
+    input[type="text"] { width: 100%; padding: 10px; font-size: 16px; }
+    button { padding: 10px; width: 100%; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<h2>📘 영단어 암기 도우미</h2>
+
+<div id="upload">
+  <input type="file" accept="image/*" id="imageInput">
+  <button onclick="runOCR()">사진에서 단어 인식</button>
+</div>
+
+<div id="quiz" style="display:none;">
+  <p id="meaning"></p>
+  <input type="text" id="answer" placeholder="영단어 입력">
+  <button onclick="next()">다음</button>
+</div>
+
+<div id="result" style="display:none;"></div>
+
+<script>
+let words = [];
+let index = 0;
+let results = [];
+
+function runOCR() {
+  const file = document.getElementById('imageInput').files[0];
+  if (!file) return alert("사진을 선택하세요.");
+
+  Tesseract.recognize(file, 'eng+kor')
+    .then(({ data: { text } }) => {
+      words = text.split('\n')
+        .map(line => line.trim().split(' '))
+        .filter(v => v.length >= 2)
+        .map(v => ({ word: v[0], meaning: v.slice(1).join(' ') }));
+
+      if (words.length === 0) return alert("단어를 인식하지 못했습니다.");
+
+      shuffle(words);
+      document.getElementById('upload').style.display = 'none';
+      document.getElementById('quiz').style.display = 'block';
+      show();
+    });
+}
+
+function show() {
+  document.getElementById('meaning').innerText =
+    `뜻: ${words[index].meaning}`;
+  document.getElementById('answer').value = '';
+}
+
+function next() {
+  const user = document.getElementById('answer').value.trim();
+  results.push({
+    ...words[index],
+    user,
+    correct: user.toLowerCase() === words[index].word.toLowerCase()
+  });
+
+  index++;
+  if (index < words.length) show();
+  else finish();
+}
+
+function finish() {
+  document.getElementById('quiz').style.display = 'none';
+  let html = `<h3>결과</h3>`;
+  let score = results.filter(r => r.correct).length;
+  html += `<p>점수: ${score} / ${results.length}</p><ul>`;
+  results.forEach(r => {
+    html += `<li>${r.meaning} → ${r.user || '(무응답)'} / ${r.word}</li>`;
+  });
+  html += `</ul><button onclick="location.reload()">다시 시험</button>`;
+  document.getElementById('result').innerHTML = html;
+  document.getElementById('result').style.display = 'block';
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+</script>
+
+</body>
+</html>
