@@ -3,69 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <title>영단어 암기 도우미</title>
-  <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+
+  <!-- 🔥 defer 필수 -->
+  <script defer src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 420px;
-      margin: auto;
-      padding: 20px;
-    }
-    h2 {
-      text-align: center;
-    }
-    input {
-      width: 100%;
-      padding: 10px;
-      font-size: 16px;
-      margin-top: 8px;
-    }
-    button {
-      width: 100%;
-      padding: 12px;
-      margin-top: 12px;
-      font-size: 16px;
-    }
-    .question {
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-    .guide {
-      font-size: 14px;
-      color: #555;
-      margin-top: 10px;
-    }
+    body { font-family: Arial, sans-serif; max-width: 420px; margin: auto; padding: 20px; }
+    h2 { text-align: center; }
+    input { width: 100%; padding: 10px; font-size: 16px; margin-top: 8px; }
+    button { width: 100%; padding: 12px; margin-top: 12px; font-size: 16px; }
+    .question { font-weight: bold; margin-bottom: 10px; }
   </style>
 </head>
 <body>
 
 <h2>📘 영단어 암기 도우미</h2>
 
-<!-- 1. 파일 선택 -->
 <div id="upload">
   <input type="file" accept="image/*" id="imageInput">
 
-  <button onclick="startQuiz()">▶ 문제 시작</button>
+  <!-- 🔥 type="button" 필수 -->
+  <button type="button" onclick="startQuiz()">▶ 문제 시작</button>
 
-  <div class="guide">
-    📌 입력 형식 예시<br>
-    apple a round fruit with red skin 사과
-  </div>
+  <p style="font-size:14px;">
+    예시: apple a round fruit with red skin 사과
+  </p>
 </div>
 
-<!-- 2. 퀴즈 화면 -->
 <div id="quiz" style="display:none;">
   <div class="question" id="definition"></div>
-
   <input type="text" id="wordInput" placeholder="영단어 입력">
   <input type="text" id="meaningInput" placeholder="뜻 입력">
-
-  <button onclick="next()">다음 문제</button>
+  <button type="button" onclick="next()">다음 문제</button>
 </div>
 
-<!-- 3. 결과 화면 -->
 <div id="result" style="display:none;"></div>
 
 <script>
@@ -73,37 +46,40 @@ let words = [];
 let index = 0;
 let results = [];
 
-/* 문제 시작 */
 function startQuiz() {
-  const file = document.getElementById('imageInput').files[0];
+  console.log("▶ 문제 시작 클릭됨");
 
+  if (typeof Tesseract === "undefined") {
+    alert("OCR 라이브러리가 로드되지 않았습니다.");
+    return;
+  }
+
+  const file = document.getElementById('imageInput').files[0];
   if (!file) {
     alert("사진 파일을 먼저 선택하세요.");
     return;
   }
 
+  alert("OCR을 시작합니다. 잠시 기다리세요.");
+
   Tesseract.recognize(file, 'eng+kor')
-    .then(({ data: { text } }) => {
+    .then(result => {
+      console.log("OCR 완료", result.data.text);
 
-     alert("OCR을 시작합니다. 잠시 기다리세요.");
-
-      words = text.split('\n')
+      words = result.data.text.split('\n')
         .map(line => line.trim())
-        .filter(line => line.length > 0)
+        .filter(line => line.split(' ').length >= 3)
         .map(line => {
           const parts = line.split(' ');
-          if (parts.length < 3) return null;
-
-          const word = parts[0];
-          const meaning = parts[parts.length - 1];
-          const definition = parts.slice(1, parts.length - 1).join(' ');
-
-          return { word, definition, meaning };
-        })
-        .filter(v => v !== null);
+          return {
+            word: parts[0],
+            definition: parts.slice(1, parts.length - 1).join(' '),
+            meaning: parts[parts.length - 1]
+          };
+        });
 
       if (words.length === 0) {
-        alert("단어를 인식하지 못했습니다.\n사진과 입력 형식을 확인하세요.");
+        alert("인식된 단어가 없습니다.");
         return;
       }
 
@@ -112,72 +88,54 @@ function startQuiz() {
       document.getElementById('quiz').style.display = 'block';
       showQuestion();
     })
-    .catch(() => {
-      alert("OCR 처리 중 오류가 발생했습니다.");
+    .catch(err => {
+      console.error(err);
+      alert("OCR 오류 발생");
     });
 }
 
-/* 문제 표시 */
 function showQuestion() {
   document.getElementById('definition').innerText =
     "영영풀이: " + words[index].definition;
-
   document.getElementById('wordInput').value = '';
   document.getElementById('meaningInput').value = '';
 }
 
-/* 다음 문제 */
 function next() {
   const wordAnswer = document.getElementById('wordInput').value.trim();
   const meaningAnswer = document.getElementById('meaningInput').value.trim();
-
-  const correct =
-    wordAnswer.toLowerCase() === words[index].word.toLowerCase() &&
-    meaningAnswer === words[index].meaning;
 
   results.push({
     ...words[index],
     wordAnswer,
     meaningAnswer,
-    correct
+    correct:
+      wordAnswer.toLowerCase() === words[index].word.toLowerCase() &&
+      meaningAnswer === words[index].meaning
   });
 
   index++;
-
-  if (index < words.length) {
-    showQuestion();
-  } else {
-    showResult();
-  }
+  if (index < words.length) showQuestion();
+  else showResult();
 }
 
-/* 결과 표시 */
 function showResult() {
   document.getElementById('quiz').style.display = 'none';
 
   let score = results.filter(r => r.correct).length;
-  let html = `<h3>결과</h3>`;
-  html += `<p>점수: ${score} / ${results.length}</p><ul>`;
+  let html = `<h3>결과</h3><p>${score} / ${results.length}</p><ul>`;
 
   results.forEach(r => {
-    html += `
-      <li>
-        <strong>${r.definition}</strong><br>
-        입력: ${r.wordAnswer || '-'} / ${r.meaningAnswer || '-'}<br>
-        정답: ${r.word} / ${r.meaning}
-      </li><br>
-    `;
+    html += `<li>${r.definition}<br>
+      입력: ${r.wordAnswer || '-'} / ${r.meaningAnswer || '-'}<br>
+      정답: ${r.word} / ${r.meaning}</li><br>`;
   });
 
-  html += `</ul>
-    <button onclick="location.reload()">🔄 다시 시험</button>
-  `;
-
+  html += `</ul><button type="button" onclick="location.reload()">🔄 다시 시험</button>`;
   document.getElementById('result').innerHTML = html;
   document.getElementById('result').style.display = 'block';
 }
 
-/* 배열 섞기 */
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
