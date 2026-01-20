@@ -4,28 +4,38 @@
   <meta charset="UTF-8" />
   <title>영단어 암기 도우미</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: Arial, sans-serif; max-width: 400px; margin: auto; padding: 20px; }
+    body { font-family: Arial, sans-serif; max-width: 420px; margin: auto; padding: 20px; }
     h2 { text-align: center; }
-    input[type="text"] { width: 100%; padding: 10px; font-size: 16px; }
-    button { padding: 10px; width: 100%; margin-top: 10px; }
+    input { width: 100%; padding: 10px; font-size: 16px; margin-top: 8px; }
+    button { padding: 12px; width: 100%; margin-top: 10px; font-size: 16px; }
+    .question { font-weight: bold; margin-bottom: 10px; }
   </style>
 </head>
 <body>
 
 <h2>📘 영단어 암기 도우미</h2>
 
+<!-- 1. 사진 촬영 -->
 <div id="upload">
-  <input type="file" accept="image/*" id="imageInput">
-  <button onclick="runOCR()">사진에서 단어 인식</button>
+  <input type="file" accept="image/*" capture="environment" id="imageInput">
+  <button onclick="runOCR()">📷 단어 사진 찍기</button>
+  <p style="font-size:14px;">
+    형식 예시:<br>
+    apple a round fruit with red skin 사과
+  </p>
 </div>
 
+<!-- 2. 시험 -->
 <div id="quiz" style="display:none;">
-  <p id="meaning"></p>
-  <input type="text" id="answer" placeholder="영단어 입력">
+  <div class="question" id="definition"></div>
+  <input type="text" id="wordInput" placeholder="영단어 입력">
+  <input type="text" id="meaningInput" placeholder="뜻 입력">
   <button onclick="next()">다음</button>
 </div>
 
+<!-- 3. 결과 -->
 <div id="result" style="display:none;"></div>
 
 <script>
@@ -35,16 +45,29 @@ let results = [];
 
 function runOCR() {
   const file = document.getElementById('imageInput').files[0];
-  if (!file) return alert("사진을 선택하세요.");
+  if (!file) return alert("사진을 찍어주세요.");
 
   Tesseract.recognize(file, 'eng+kor')
     .then(({ data: { text } }) => {
       words = text.split('\n')
-        .map(line => line.trim().split(' '))
-        .filter(v => v.length >= 2)
-        .map(v => ({ word: v[0], meaning: v.slice(1).join(' ') }));
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map(line => {
+          const parts = line.split(' ');
+          if (parts.length < 3) return null;
 
-      if (words.length === 0) return alert("단어를 인식하지 못했습니다.");
+          const word = parts[0];
+          const meaning = parts[parts.length - 1];
+          const definition = parts.slice(1, parts.length - 1).join(' ');
+
+          return { word, definition, meaning };
+        })
+        .filter(v => v !== null);
+
+      if (words.length === 0) {
+        alert("단어를 인식하지 못했습니다.\n형식을 확인하세요.");
+        return;
+      }
 
       shuffle(words);
       document.getElementById('upload').style.display = 'none';
@@ -54,17 +77,25 @@ function runOCR() {
 }
 
 function show() {
-  document.getElementById('meaning').innerText =
-    `뜻: ${words[index].meaning}`;
-  document.getElementById('answer').value = '';
+  document.getElementById('definition').innerText =
+    `영영풀이: ${words[index].definition}`;
+  document.getElementById('wordInput').value = '';
+  document.getElementById('meaningInput').value = '';
 }
 
 function next() {
-  const user = document.getElementById('answer').value.trim();
+  const wordAnswer = document.getElementById('wordInput').value.trim();
+  const meaningAnswer = document.getElementById('meaningInput').value.trim();
+
+  const correct =
+    wordAnswer.toLowerCase() === words[index].word.toLowerCase() &&
+    meaningAnswer === words[index].meaning;
+
   results.push({
     ...words[index],
-    user,
-    correct: user.toLowerCase() === words[index].word.toLowerCase()
+    wordAnswer,
+    meaningAnswer,
+    correct
   });
 
   index++;
@@ -74,13 +105,21 @@ function next() {
 
 function finish() {
   document.getElementById('quiz').style.display = 'none';
-  let html = `<h3>결과</h3>`;
+
   let score = results.filter(r => r.correct).length;
+  let html = `<h3>결과</h3>`;
   html += `<p>점수: ${score} / ${results.length}</p><ul>`;
+
   results.forEach(r => {
-    html += `<li>${r.meaning} → ${r.user || '(무응답)'} / ${r.word}</li>`;
+    html += `
+      <li>
+        <strong>${r.definition}</strong><br>
+        입력: ${r.wordAnswer || '-'} / ${r.meaningAnswer || '-'}<br>
+        정답: ${r.word} / ${r.meaning}
+      </li><br>`;
   });
-  html += `</ul><button onclick="location.reload()">다시 시험</button>`;
+
+  html += `</ul><button onclick="location.reload()">🔄 다시 시험</button>`;
   document.getElementById('result').innerHTML = html;
   document.getElementById('result').style.display = 'block';
 }
