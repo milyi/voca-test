@@ -5,37 +5,67 @@
   <title>영단어 암기 도우미</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <style>
-    body { font-family: Arial, sans-serif; max-width: 420px; margin: auto; padding: 20px; }
-    h2 { text-align: center; }
-    input { width: 100%; padding: 10px; font-size: 16px; margin-top: 8px; }
-    button { padding: 12px; width: 100%; margin-top: 10px; font-size: 16px; }
-    .question { font-weight: bold; margin-bottom: 10px; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 420px;
+      margin: auto;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 8px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 16px;
+    }
+    .question {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .guide {
+      font-size: 14px;
+      color: #555;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
 
 <h2>📘 영단어 암기 도우미</h2>
 
-<!-- 1. 사진 촬영 -->
+<!-- 1. 파일 선택 -->
 <div id="upload">
-  <input type="file" accept="image/*" capture="environment" id="imageInput">
-  <button onclick="runOCR()">📷 단어 사진 찍기</button>
-  <p style="font-size:14px;">
-    형식 예시:<br>
+  <input type="file" accept="image/*" id="imageInput">
+
+  <button onclick="startQuiz()">▶ 문제 시작</button>
+
+  <div class="guide">
+    📌 입력 형식 예시<br>
     apple a round fruit with red skin 사과
-  </p>
+  </div>
 </div>
 
-<!-- 2. 시험 -->
+<!-- 2. 퀴즈 화면 -->
 <div id="quiz" style="display:none;">
   <div class="question" id="definition"></div>
+
   <input type="text" id="wordInput" placeholder="영단어 입력">
   <input type="text" id="meaningInput" placeholder="뜻 입력">
-  <button onclick="next()">다음</button>
+
+  <button onclick="next()">다음 문제</button>
 </div>
 
-<!-- 3. 결과 -->
+<!-- 3. 결과 화면 -->
 <div id="result" style="display:none;"></div>
 
 <script>
@@ -43,12 +73,18 @@ let words = [];
 let index = 0;
 let results = [];
 
-function runOCR() {
+/* 문제 시작 */
+function startQuiz() {
   const file = document.getElementById('imageInput').files[0];
-  if (!file) return alert("사진을 찍어주세요.");
+
+  if (!file) {
+    alert("사진 파일을 먼저 선택하세요.");
+    return;
+  }
 
   Tesseract.recognize(file, 'eng+kor')
     .then(({ data: { text } }) => {
+
       words = text.split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0)
@@ -65,24 +101,30 @@ function runOCR() {
         .filter(v => v !== null);
 
       if (words.length === 0) {
-        alert("단어를 인식하지 못했습니다.\n형식을 확인하세요.");
+        alert("단어를 인식하지 못했습니다.\n사진과 입력 형식을 확인하세요.");
         return;
       }
 
       shuffle(words);
       document.getElementById('upload').style.display = 'none';
       document.getElementById('quiz').style.display = 'block';
-      show();
+      showQuestion();
+    })
+    .catch(() => {
+      alert("OCR 처리 중 오류가 발생했습니다.");
     });
 }
 
-function show() {
+/* 문제 표시 */
+function showQuestion() {
   document.getElementById('definition').innerText =
-    `영영풀이: ${words[index].definition}`;
+    "영영풀이: " + words[index].definition;
+
   document.getElementById('wordInput').value = '';
   document.getElementById('meaningInput').value = '';
 }
 
+/* 다음 문제 */
 function next() {
   const wordAnswer = document.getElementById('wordInput').value.trim();
   const meaningAnswer = document.getElementById('meaningInput').value.trim();
@@ -99,11 +141,16 @@ function next() {
   });
 
   index++;
-  if (index < words.length) show();
-  else finish();
+
+  if (index < words.length) {
+    showQuestion();
+  } else {
+    showResult();
+  }
 }
 
-function finish() {
+/* 결과 표시 */
+function showResult() {
   document.getElementById('quiz').style.display = 'none';
 
   let score = results.filter(r => r.correct).length;
@@ -116,14 +163,19 @@ function finish() {
         <strong>${r.definition}</strong><br>
         입력: ${r.wordAnswer || '-'} / ${r.meaningAnswer || '-'}<br>
         정답: ${r.word} / ${r.meaning}
-      </li><br>`;
+      </li><br>
+    `;
   });
 
-  html += `</ul><button onclick="location.reload()">🔄 다시 시험</button>`;
+  html += `</ul>
+    <button onclick="location.reload()">🔄 다시 시험</button>
+  `;
+
   document.getElementById('result').innerHTML = html;
   document.getElementById('result').style.display = 'block';
 }
 
+/* 배열 섞기 */
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
